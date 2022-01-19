@@ -162,7 +162,7 @@ int main (int argc, char *argv[])
 	/* Initialize Little and Big CPU with Lowest Frequency */
 	Command="echo " + to_string(LittleFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
 	system(Command.c_str());
-	Command="echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";	
+	Command="echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
 	system(Command.c_str());
 
 	int N_Frames=10;
@@ -177,7 +177,7 @@ int main (int argc, char *argv[])
 		system(Run_Command);
 		ParseResults();
 		if ( FPSCondition && LatencyCondition ){//Both Latency and Throughput Requirements are Met.
-			printf("Solution Was Found.\n TargetBigFrequency:%d \t TargetLittleFrequency:%d \t PartitionPoint1:%d \t PartitionPoint2:%d \t Order:%s\n", 
+			printf("Solution Was Found.\n TargetBigFrequency:%d \t TargetLittleFrequency:%d \t PartitionPoint1:%d \t PartitionPoint2:%d \t Order:%s\n",
 			BigFrequencyTable[BigFrequencyCounter],LittleFrequencyTable[LittleFrequencyCounter], PartitionPoint1, PartitionPoint2, Order.c_str());
 			break;
 		}
@@ -186,18 +186,20 @@ int main (int argc, char *argv[])
 
 		if ( LittleFrequencyCounter < MaxLittleFrequencyCounter ){
 			/* Push Frequency of Little Cluster Higher to Meet Target Performance */
-			LittleFrequencyCounter=LittleFrequencyCounter+1;
+			int deltaToMax = MaxLittleFrequencyCounter - LittleFrequencyCounter;
+			LittleFrequencyCounter=LittleFrequencyCounter + std::max(deltaToMax / 2, 1);
 			Command="echo " + to_string(LittleFrequencyTable[LittleFrequencyCounter]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
 			system(Command.c_str());
-			printf("Increasing Frequency of Little Cores to %d\n", LittleFrequencyTable[LittleFrequencyCounter]);
+			printf("Increasing Frequency of Little Cores to %d %d\n", LittleFrequencyCounter, LittleFrequencyTable[LittleFrequencyCounter]);
 		}
 		else{
 			if ( BigFrequencyCounter < MaxBigFrequencyCounter ){
+				int deltaToMax = MaxBigFrequencyCounter - BigFrequencyCounter;
 				/* Push Frequency of Small Cluster Higher to Meet Target Performance */
-				BigFrequencyCounter=BigFrequencyCounter+1;
+				BigFrequencyCounter=BigFrequencyCounter + std::max(deltaToMax / 2, 1);
 				Command="echo " + to_string(BigFrequencyTable[BigFrequencyCounter]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
 				system(Command.c_str());
-				printf("Increasing Frequency of Big Cores to %d\n", BigFrequencyTable[BigFrequencyCounter]);
+				printf("Increasing Frequency of Big Cores to %d %d\n", BigFrequencyCounter, BigFrequencyTable[BigFrequencyCounter]);
 			}
 			else{
 				if ( StageOneInferenceTime < StageThreeInferenceTime ){
