@@ -151,7 +151,6 @@ int main (int argc, char *argv[])
 	if (system(NULL)) puts ("Ok");
 	else exit (EXIT_FAILURE);
 
-
 	/* Export OpenCL library path */
 	// system("export LD_LIBRARY_PATH=/data/local/workingdir");
 	setenv("LD_LIBRARY_PATH", "/data/local/workingdir", 1);
@@ -194,37 +193,38 @@ int main (int argc, char *argv[])
 			system(Command.c_str());
 			printf("Increasing Frequency of Little Cores to %d %d\n", LittleFrequencyCounter, LittleFrequencyTable[LittleFrequencyCounter]);
 		}
-		else{
-			if ( BigFrequencyCounter < MaxBigFrequencyCounter ){
-				int deltaToMax = MaxBigFrequencyCounter - BigFrequencyCounter;
-				/* Push Frequency of Small Cluster Higher to Meet Target Performance */
-				BigFrequencyCounter=BigFrequencyCounter + std::max(deltaToMax / 2, 1);
-				Command="echo " + to_string(BigFrequencyTable[BigFrequencyCounter]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
-				system(Command.c_str());
-				printf("Increasing Frequency of Big Cores to %d %d\n", BigFrequencyCounter, BigFrequencyTable[BigFrequencyCounter]);
-			}
-			else{
-				if ( StageOneInferenceTime < StageThreeInferenceTime ){
-					if ( PartitionPoint2 < partitions ){
-						/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
-						PartitionPoint2=PartitionPoint2+1;
-						printf("Reducing the Size of Pipeline Partition 3\n");
-					}
-					else{
-						printf("No Solution Found\n");
-						break;
-					}
+
+		if ( BigFrequencyCounter < MaxBigFrequencyCounter ){
+			int deltaToMax = MaxBigFrequencyCounter - BigFrequencyCounter;
+			/* Push Frequency of Small Cluster Higher to Meet Target Performance */
+			BigFrequencyCounter=BigFrequencyCounter + std::max(deltaToMax / 2, 1);
+			Command="echo " + to_string(BigFrequencyTable[BigFrequencyCounter]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
+			system(Command.c_str());
+			printf("Increasing Frequency of Big Cores to %d %d\n", BigFrequencyCounter, BigFrequencyTable[BigFrequencyCounter]);
+		}
+
+		if (LittleFrequencyCounter == MaxLittleFrequencyCounter &&
+			BigFrequencyCounter == MaxBigFrequencyCounter) {
+			if ( StageOneInferenceTime < StageThreeInferenceTime ){
+				if ( PartitionPoint2 < partitions ){
+					/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
+					PartitionPoint2=PartitionPoint2+1;
+					printf("Reducing the Size of Pipeline Partition 3\n");
 				}
 				else{
-					if ( PartitionPoint1 > 1 ){
-						/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
-						PartitionPoint1=PartitionPoint1-1;
-						printf("Reducing the Size of Pipeline Partition 1\n");
-					}
-					else{
-						printf("No Solution Found\n");
-						break;
-					}
+					printf("No Solution Found\n");
+					break;
+				}
+			}
+			else{
+				if ( PartitionPoint1 > 1 ){
+					/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
+					PartitionPoint1=PartitionPoint1-1;
+					printf("Reducing the Size of Pipeline Partition 1\n");
+				}
+				else{
+					printf("No Solution Found\n");
+					break;
 				}
 			}
 		}
