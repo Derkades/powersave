@@ -153,7 +153,8 @@ int main (int argc, char *argv[])
 
 
 	/* Export OpenCL library path */
-	system("export LD_LIBRARY_PATH=/data/local/Working_dir");
+	// system("export LD_LIBRARY_PATH=/data/local/workingdir");
+	setenv("LD_LIBRARY_PATH", "/data/local/workingdir", 1);
 
 	/* Setup Performance Governor (CPU) */
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor");
@@ -167,13 +168,14 @@ int main (int argc, char *argv[])
 
 	int N_Frames=10;
 	/* Start with running half network on Little CPU and half network on Big CPU with GPU empty in the middle */
-	int PartitionPoint1=partitions/2;
-	int PartitionPoint2=partitions/2;
+	int PartitionPoint1=1;
+	int PartitionPoint2=5;
 	string Order="L-G-B";
 	while(true){
 		char Run_Command[150];
 		sprintf(Run_Command,"./%s --threads=4 --threads2=2 --target=NEON --n=%d --partition_point=%d --partition_point2=%d --order=%s > output.txt",
 		graph.c_str(), N_Frames, PartitionPoint1, PartitionPoint2, Order.c_str());
+		printf("command: %s\n", Run_Command);
 		system(Run_Command);
 		ParseResults();
 		if ( FPSCondition && LatencyCondition ){//Both Latency and Throughput Requirements are Met.

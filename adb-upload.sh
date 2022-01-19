@@ -1,5 +1,7 @@
 #!/bin/bash
 set -ex
+adb root
+adb connect 10.42.0.148:5555
 arm-linux-androideabi-clang++ -static-libstdc++ Governor.cpp -o Governor
 adb push Governor /data/local/workingdir/
 adb exec-out sh -c 'echo 0 > /sys/class/fan/mode'
