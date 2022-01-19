@@ -18,11 +18,11 @@ using namespace std;
 int LittleFrequencyTable[]={500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
 int BigFrequencyTable[]={500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
 
-int LittleFrequencyCounter=0;
-int BigFrequencyCounter=0;
+int cur_little_freq_index = 0;
+int cur_big_freq_index = 0;
 
-int MaxLittleFrequencyCounter=8;
-int MaxBigFrequencyCounter=12;
+int max_little_freq_index=8;
+int max_big_freq_index=12;
 
 bool LatencyCondition=0;
 bool FPSCondition=0;
@@ -133,102 +133,154 @@ void ParseResults(){
 	}
 }
 
+void run_test(string graph, string order, int n_frames, int partition_point_1, int partition_point_2) {
+	char formatted_command[150];
+	sprintf(formatted_command,
+			"./%s --threads=4 --threads2=2 --target=NEON --n=%d --partition_point=%d --partition_point2=%d --order=%s > output.txt",
+			graph.c_str(), n_frames, partition_point_1, partition_point_2, order.c_str());
+	printf("Running command: %s\n", formatted_command);
+	system(formatted_command);
 
-int main (int argc, char *argv[])
-{
-	if ( argc < 5 ){
-		std::cout<<"Wrong number of input arguments.\n";
+	ParseResults();
+}
+
+
+void set_big_freq(int new_big_freq_index)  {
+	int new_freq = BigFrequencyTable[new_big_freq_index];
+	string command = "echo " + to_string(new_freq) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
+	system(command.c_str());
+	printf("Increasing frequency of big cores to %d %d\n", new_big_freq_index, new_freq);
+	cur_big_freq_index = new_big_freq_index;
+}
+
+void set_little_freq(int new_little_freq_index)  {
+	int new_freq = LittleFrequencyTable[new_little_freq_index];
+	string command = "echo " + to_string(new_freq) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
+	system(command.c_str());
+	printf("Increasing frequency of little cores to %d %d\n", new_little_freq_index, new_freq);
+	cur_little_freq_index = new_little_freq_index;
+}
+
+
+int main(int argc, char *argv[]) {
+	if (argc < 5) {
+		std::cout << "Wrong number of input arguments.\n";
 		return -1;
 	}
+
 	string graph=argv[1];
 	partitions=atoi(argv[2]);
 	Target_FPS=atoi(argv[3]);
 	Target_Latency=atoi(argv[4]);
 
-	string Command="";
+	// Check if processor is available
+	if (!system(NULL)) {
+		exit(EXIT_FAILURE);
+	}
 
-	/* Checking if processor is available */
-	if (system(NULL)) puts ("Ok");
-	else exit (EXIT_FAILURE);
-
-	/* Export OpenCL library path */
-	// system("export LD_LIBRARY_PATH=/data/local/workingdir");
+	// Set OpenCL library path
 	setenv("LD_LIBRARY_PATH", "/data/local/workingdir", 1);
 
-	/* Setup Performance Governor (CPU) */
+	// Setup Performance Governor (CPU)
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor");
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy2/scaling_governor");
 
-	/* Initialize Little and Big CPU with Lowest Frequency */
-	Command="echo " + to_string(LittleFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
-	system(Command.c_str());
-	Command="echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
-	system(Command.c_str());
+	// Initialize little and big CPU with lowest frequency
+	string command;
+	command = "echo " + to_string(LittleFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
+	system(command.c_str());
+	command = "echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
+	system(command.c_str());
 
-	int N_Frames=10;
+	int n_frames = 10;
 	/* Start with running half network on Little CPU and half network on Big CPU with GPU empty in the middle */
-	int PartitionPoint1=1;
-	int PartitionPoint2=5;
-	string Order="L-G-B";
-	while(true){
-		char Run_Command[150];
-		sprintf(Run_Command,"./%s --threads=4 --threads2=2 --target=NEON --n=%d --partition_point=%d --partition_point2=%d --order=%s > output.txt",
-		graph.c_str(), N_Frames, PartitionPoint1, PartitionPoint2, Order.c_str());
-		printf("command: %s\n", Run_Command);
-		system(Run_Command);
-		ParseResults();
-		if ( FPSCondition && LatencyCondition ){//Both Latency and Throughput Requirements are Met.
-			printf("Solution Was Found.\n TargetBigFrequency:%d \t TargetLittleFrequency:%d \t PartitionPoint1:%d \t PartitionPoint2:%d \t Order:%s\n",
-			BigFrequencyTable[BigFrequencyCounter],LittleFrequencyTable[LittleFrequencyCounter], PartitionPoint1, PartitionPoint2, Order.c_str());
+	int partition_point_1 = 1;
+	int partition_point_2 = 5;
+	string order = "L-G-B";
+
+	bool target_reached = false;
+	bool tried_lowering_big = false;
+	bool tried_lowering_little = false;
+
+	while(true) {
+		run_test(graph, order, n_frames, partition_point_1, partition_point_2);
+
+		if (FPSCondition && LatencyCondition) {
+			printf("Latency and throughput targets met. Backing off big CPU frequency");
+
+			while(true) {
+				set_big_freq(cur_big_freq_index - 1) ;
+				run_test(graph, order, n_frames, partition_point_1, partition_point_2);
+
+				if (FPSCondition && LatencyCondition) {
+					printf("Conditions still met, dropping more");
+					continue;
+				} else {
+					printf("Conditions now failing, restore frequency");
+					set_big_freq(cur_big_freq_index + 1);
+				}
+			}
+
+			printf("Now try backing off little CPU freq");
+
+			while(true) {
+				set_little_freq(cur_little_freq_index - 1);
+				run_test(graph, order, n_frames, partition_point_1, partition_point_2);
+
+				if (FPSCondition && LatencyCondition) {
+					printf("Conditions still met, dropping more");
+					continue;
+				} else {
+					printf("Conditions now failing, restore frequency");
+					set_little_freq(cur_little_freq_index + 1);
+				}
+			}
+
+			printf("Solution Was Found.\n TargetBigFrequency:%d \t TargetLittleFrequency:%d \t partition_point_1:%d \t partition_point_2:%d \t Order:%s\n",
+			BigFrequencyTable[cur_big_freq_index ] ,LittleFrequencyTable[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
 			break;
 		}
 
-		printf("Target Perfromance Not Satisfied\n\n");
+		printf("Target performance not satisfied\n\n");
 
-		if ( LittleFrequencyCounter < MaxLittleFrequencyCounter ){
-			/* Push Frequency of Little Cluster Higher to Meet Target Performance */
-			int deltaToMax = MaxLittleFrequencyCounter - LittleFrequencyCounter;
-			LittleFrequencyCounter=LittleFrequencyCounter + std::max(deltaToMax / 2, 1);
-			Command="echo " + to_string(LittleFrequencyTable[LittleFrequencyCounter]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
-			system(Command.c_str());
-			printf("Increasing Frequency of Little Cores to %d %d\n", LittleFrequencyCounter, LittleFrequencyTable[LittleFrequencyCounter]);
+		if (cur_little_freq_index < max_little_freq_index) {
+			// Push frequency of little cluster higher to meet target performance
+			int deltaToMax = max_big_freq_index - cur_little_freq_index;
+			cur_little_freq_index = cur_little_freq_index + std::max(deltaToMax / 2, 1);
+			command = "echo " + to_string(LittleFrequencyTable[cur_little_freq_index]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
+			system(command.c_str());
+			printf("Increasing Frequency of Little Cores to %d %d\n", cur_little_freq_index, LittleFrequencyTable[cur_little_freq_index]);
+			continue;
 		}
 
-		if ( BigFrequencyCounter < MaxBigFrequencyCounter ){
-			int deltaToMax = MaxBigFrequencyCounter - BigFrequencyCounter;
-			/* Push Frequency of Small Cluster Higher to Meet Target Performance */
-			BigFrequencyCounter=BigFrequencyCounter + std::max(deltaToMax / 2, 1);
-			Command="echo " + to_string(BigFrequencyTable[BigFrequencyCounter]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
-			system(Command.c_str());
-			printf("Increasing Frequency of Big Cores to %d %d\n", BigFrequencyCounter, BigFrequencyTable[BigFrequencyCounter]);
+		if (cur_big_freq_index < max_big_freq_index) {
+			int deltaToMax = max_little_freq_index - cur_big_freq_index ;
+			// Push frequency of small cluster higher to meet target performance
+			cur_big_freq_index = cur_big_freq_index   + std::max(deltaToMax / 2, 1);
+			set_big_freq(cur_big_freq_index ) ;
+			continue;
 		}
 
-		if (LittleFrequencyCounter == MaxLittleFrequencyCounter &&
-			BigFrequencyCounter == MaxBigFrequencyCounter) {
-			if ( StageOneInferenceTime < StageThreeInferenceTime ){
-				if ( PartitionPoint2 < partitions ){
-					/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
-					PartitionPoint2=PartitionPoint2+1;
-					printf("Reducing the Size of Pipeline Partition 3\n");
-				}
-				else{
-					printf("No Solution Found\n");
-					break;
-				}
+		if (StageOneInferenceTime < StageThreeInferenceTime) {
+			if (partition_point_2 < partitions) {
+				/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
+				partition_point_2 = partition_point_2 + 1;
+				printf("Reducing the Size of Pipeline Partition 3\n");
+			} else {
+				printf("No Solution Found\n");
+				break;
 			}
-			else{
-				if ( PartitionPoint1 > 1 ){
-					/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
-					PartitionPoint1=PartitionPoint1-1;
-					printf("Reducing the Size of Pipeline Partition 1\n");
-				}
-				else{
-					printf("No Solution Found\n");
-					break;
-				}
+		} else {
+			if (partition_point_1 > 1) {
+				/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
+				partition_point_1 = partition_point_1 - 1;
+				printf("Reducing the Size of Pipeline Partition 1\n");
+			} else{
+				printf("No Solution Found\n");
+				break;
 			}
 		}
 	}
 
-  return 0;
+  	return 0;
 }
