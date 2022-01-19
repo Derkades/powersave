@@ -1,8 +1,8 @@
 /*Instructions to Run
-On Your Computer: 
-	arm-linux-androideabi-clang++ -static-libstdc++ Governor.cpp -o Governor 
+On Your Computer:
+	arm-linux-androideabi-clang++ -static-libstdc++ Governor.cpp -o Governor
 	adb push Governor /data/local/Working_dir
-On the Board: 
+On the Board:
 	chmod +x Governor.sh
 	./Governor graph_alexnet_all_pipe_sync #NumberOFPartitions #TargetFPS #TargetLatency
 */
@@ -153,7 +153,7 @@ int main (int argc, char *argv[])
 
 
 	/* Export OpenCL library path */
-	system("export LD_LIBRARY_PATH=/data/local/Working_dir");
+	system("export LD_LIBRARY_PATH=/data/local/workingdir");
 
 	/* Setup Performance Governor (CPU) */
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor");
@@ -171,7 +171,7 @@ int main (int argc, char *argv[])
 	int PartitionPoint2=partitions/2;
 	string Order="L-G-B";
 	while(true){
-		char Run_Command[150];		
+		char Run_Command[150];
 		sprintf(Run_Command,"./%s --threads=4 --threads2=2 --target=NEON --n=%d --partition_point=%d --partition_point2=%d --order=%s > output.txt",
 		graph.c_str(), N_Frames, PartitionPoint1, PartitionPoint2, Order.c_str());
 		system(Run_Command);
@@ -179,7 +179,7 @@ int main (int argc, char *argv[])
 		if ( FPSCondition && LatencyCondition ){//Both Latency and Throughput Requirements are Met.
 			printf("Solution Was Found.\n TargetBigFrequency:%d \t TargetLittleFrequency:%d \t PartitionPoint1:%d \t PartitionPoint2:%d \t Order:%s\n", 
 			BigFrequencyTable[BigFrequencyCounter],LittleFrequencyTable[LittleFrequencyCounter], PartitionPoint1, PartitionPoint2, Order.c_str());
-			break;	
+			break;
 		}
 
 		printf("Target Perfromance Not Satisfied\n\n");
@@ -225,6 +225,6 @@ int main (int argc, char *argv[])
 			}
 		}
 	}
-  
+
   return 0;
 }
