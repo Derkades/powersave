@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 
-			while(true) {
+			while(cur_big_freq_index > 0) {
 				set_big_freq(cur_big_freq_index - 1) ;
 				run_test(graph, order, n_frames, partition_point_1, partition_point_2);
 
@@ -229,7 +229,7 @@ int main(int argc, char *argv[]) {
 
 			printf("Now try backing off little CPU freq\n");
 
-			while(true) {
+			while(cur_little_freq_index > 0) {
 				set_little_freq(cur_little_freq_index - 1);
 				run_test(graph, order, n_frames, partition_point_1, partition_point_2);
 
