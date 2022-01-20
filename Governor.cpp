@@ -125,12 +125,8 @@ void ParseResults(){
 		}
 	}
 	/* Check Throughput and Latency Constraints */
-	if ( Latency <= Target_Latency ){
-		LatencyCondition=1; //Latency requirement was met.
-	}
-	if ( FPS >= Target_FPS ){
-		FPSCondition=1; //FPS requirement was met.
-	}
+	LatencyCondition = Latency <= Target_Latency;
+	FPSCondition = FPS >= Target_FPS;
 }
 
 void run_test(string graph, string order, int n_frames, int partition_point_1, int partition_point_2) {
@@ -256,7 +252,7 @@ int main(int argc, char *argv[]) {
 		if (cur_big_freq_index < max_big_freq_index) {
 			int deltaToMax = max_little_freq_index - cur_big_freq_index ;
 			// Push frequency of small cluster higher to meet target performance
-			cur_big_freq_index = cur_big_freq_index   + std::max(deltaToMax / 2, 1);
+			cur_big_freq_index = cur_big_freq_index + std::max(deltaToMax / 2, 1);
 			set_big_freq(cur_big_freq_index ) ;
 			continue;
 		}
