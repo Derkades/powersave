@@ -39,100 +39,98 @@ int target_latency = 0;
 bool latency_condition = false;
 bool fps_condition = false;
 
-float StageOneInferenceTime = 0;
-float StageTwoInferenceTime = 0;
-float StageThreeInferenceTime = 0;
-
+float stage_one_inference_time = 0;
+float stage_two_inference_time = 0;
+float stage_three_inference_time = 0;
 
 /* Get feedback by parsing the results */
 void ParseResults() {
-	float FPS;
-	float Latency;
+	float fps;
+	float latency;
 	ifstream myfile("output.txt");
 	cout << endl;
 	/* Read Output.txt File and Extract Data */
-	for( std::string line; getline( myfile, line ); )
-	{
+	for (std::string line; getline(myfile, line); ) {
 		string temp;
 		/* Extract Frame Rate */
-		if ( line.find("Frame rate is:")==0 ){
+		if (line.find("Frame rate is:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> FPS) {
-					printf("Throughput is: %f FPS\n", FPS);
+				if (stringstream(temp) >> fps) {
+					printf("Throughput is: %f fps\n", fps);
 					break;
 				}
 				temp = "";
 			}
 		}
-		/* Extract Frame Latency */
-		if ( line.find("Frame latency is:")==0 ){
+		/* Extract Frame latency */
+		if (line.find("Frame latency is:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> Latency){
-					printf("Latency is: %f ms\n", Latency);
+				if (stringstream(temp) >> latency){
+					printf("latency is: %f ms\n", latency);
 					break;
 				}
 				temp = "";
 			}
 		}
 		/* Extract Stage One Inference Time */
-		if (line.find("stage1_inference_time:")==0 ){
+		if (line.find("stage1_inference_time:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> StageOneInferenceTime){
-					//printf("StageOneInferenceTime is: %f ms\n", StageOneInferenceTime);
+				if (stringstream(temp) >> stage_one_inference_time){
+					//printf("stage_one_inference_time is: %f ms\n", stage_one_inference_time);
 					break;
 				}
 				temp = "";
 			}
 		}
 		/* Extract Stage Two Inference Time */
-		if (line.find("stage2_inference_time:")==0 ){
+		if (line.find("stage2_inference_time:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> StageTwoInferenceTime){
-					//printf("StageTwoInferenceTime is: %f ms\n", StageTwoInferenceTime);
+				if (stringstream(temp) >> stage_two_inference_time){
+					//printf("stage_two_inference_time is: %f ms\n", stage_two_inference_time);
 					break;
 				}
 				temp = "";
 			}
 		}
 		/* Extract Stage Three Inference Time */
-		if (line.find("stage3_inference_time:")==0 ){
+		if (line.find("stage3_inference_time:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> StageThreeInferenceTime){
-					//printf("StageThreeInferenceTime is: %f ms\n", StageThreeInferenceTime);
+				if (stringstream(temp) >> stage_three_inference_time) {
+					//printf("stage_three_inference_time is: %f ms\n", stage_three_inference_time);
 					break;
 				}
 				temp = "";
 			}
 		}
 	}
-	/* Check Throughput and Latency Constraints */
-	latency_condition = Latency <= target_latency;
-	fps_condition = FPS >= target_fps;
+	/* Check Throughput and latency Constraints */
+	latency_condition = latency <= target_latency;
+	fps_condition = fps >= target_fps;
 }
 
 void run_test() {
@@ -145,7 +143,7 @@ void run_test() {
 
 	ParseResults();
 
-	printf("Inference stage times: %.2f %.2f %.2f\n", StageOneInferenceTime, StageTwoInferenceTime, StageThreeInferenceTime);
+	printf("Inference stage times: %.2f %.2f %.2f\n", stage_one_inference_time, stage_two_inference_time, stage_three_inference_time);
 }
 
 
@@ -188,7 +186,7 @@ void update_target() {
 		perror("target_latency format");
 		exit(1);
 	}
-	printf("Target FPS is %d, target latency is %d\n", target_fps, target_latency);
+	printf("Target fps is %d, target latency is %d\n", target_fps, target_latency);
 }
 
 int main(int argc, char *argv[]) {
@@ -229,7 +227,7 @@ int main(int argc, char *argv[]) {
 	// system(command.c_str());
 
 	if (target_fps > 11) {
-		printf("High FPS target, using GPU and pre-raising big/little clock\n");
+		printf("High fps target, using GPU and pre-raising big/little clock\n");
 		partition_point_1 = 1;
 		partition_point_2 = 6;
 		set_big_freq(max_big_freq_index/2);
@@ -244,7 +242,7 @@ int main(int argc, char *argv[]) {
 		run_test();
 
 		if (fps_condition && latency_condition) {
-			printf("Latency and throughput targets met.\n");
+			printf("latency and throughput targets met.\n");
 
 			// while(partition_point_2 > partition_point_1) {
 			// 	printf("Moving some GPU workload to big CPU\n");
@@ -322,7 +320,7 @@ int main(int argc, char *argv[]) {
 				printf("Partition point 2: 6->5\n");
 				partition_point_2 = 5;
 			}
-			// if (StageOneInferenceTime < StageThreeInferenceTime) {
+			// if (stage_one_inference_time < stage_three_inference_time) {
 			// if (partition_point_2 > 5) {
 			// 	if (partition_point_2 < 5) {
 			// 		/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
