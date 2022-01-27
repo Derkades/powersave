@@ -13,28 +13,35 @@ On the Board:
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <errno.h>
 using namespace std;
 
-int LittleFrequencyTable[]={500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
-int BigFrequencyTable[]={500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
+int LittleFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
+int BigFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
 
 int cur_little_freq_index = 0;
 int cur_big_freq_index = 0;
 
-int max_little_freq_index=8;
-int max_big_freq_index=12;
+int max_little_freq_index = 8;
+int max_big_freq_index = 12;
 
-bool latency_condition=0;
-bool fps_condition=0;
+int partition_point_1;
+int partition_point_2;
 
+std::string graph;
+std::string order;
+int n_frames;
 
-float StageOneInferenceTime=0;
-float StageTwoInferenceTime=0;
-float StageThreeInferenceTime=0;
+int partitions = 0;
+int target_fps = 0;
+int target_latency = 0;
 
-int partitions=0;
-int target_fps=0;
-int target_latency=0;
+bool latency_condition = false;
+bool fps_condition = false;
+
+float StageOneInferenceTime = 0;
+float StageTwoInferenceTime = 0;
+float StageThreeInferenceTime = 0;
 
 
 /* Get feedback by parsing the results */
@@ -128,7 +135,7 @@ void ParseResults() {
 	fps_condition = FPS >= target_fps;
 }
 
-void run_test(string graph, string order, int n_frames, int partition_point_1, int partition_point_2) {
+void run_test() {
 	char formatted_command[150];
 	sprintf(formatted_command,
 			"./%s --threads=4 --threads2=2 --target=NEON --n=%d --partition_point=%d --partition_point2=%d --order=%s > output.txt",
@@ -158,17 +165,47 @@ void set_little_freq(int new_little_freq_index)  {
 	cur_little_freq_index = new_little_freq_index;
 }
 
+void update_target() {
+	ifstream target_file("target.txt");
+	std::string line;
+	getline(target_file, line);
+	if (errno != 0) {
+		perror("target_fps read");
+		exit(1);
+	}
+	target_fps = (int) strtol(line.c_str(), NULL, 10);
+	if (errno != 0) {
+		perror("target_fps format");
+		exit(1);
+	}
+	getline(target_file, line);
+	if (errno != 0) {
+		perror("target_latency read");
+		exit(1);
+	}
+	target_latency = (int) strtol(line.c_str(), NULL, 10);
+	if (errno != 0) {
+		perror("target_latency format");
+		exit(1);
+	}
+	printf("Target FPS is %d, target latency is %d\n", target_fps, target_latency);
+}
 
 int main(int argc, char *argv[]) {
-	if (argc < 5) {
+	// if (argc < 5) {
+	if (argc != 2) {
 		std::cout << "Wrong number of input arguments.\n";
 		return -1;
 	}
 
-	string graph = argv[1];
-	partitions = atoi(argv[2]);
-	target_fps = atoi(argv[3]);
-	target_latency = atoi(argv[4]);
+	graph = argv[1];
+	partitions = 3;
+	// partitions = atoi(argv[2]);
+	// target_fps = atoi(argv[3]);
+	// target_latency = atoi(argv[4]);
+	order = "L-G-B";
+	n_frames = 10;
+	update_target();
 
 	// Check if processor is available
 	if (!system(NULL)) {
@@ -191,8 +228,6 @@ int main(int argc, char *argv[]) {
 	// command = "echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
 	// system(command.c_str());
 
-	int n_frames = 10;
-	int partition_point_1, partition_point_2;
 	if (target_fps > 11) {
 		printf("High FPS target, using GPU and pre-raising big/little clock\n");
 		partition_point_1 = 1;
@@ -204,10 +239,9 @@ int main(int argc, char *argv[]) {
 		partition_point_2 = 1;
 	}
 
-	string order = "L-G-B";
-
 	while(true) {
-		run_test(graph, order, n_frames, partition_point_1, partition_point_2);
+		update_target();
+		run_test();
 
 		if (fps_condition && latency_condition) {
 			printf("Latency and throughput targets met.\n");
@@ -227,7 +261,7 @@ int main(int argc, char *argv[]) {
 
 			while (cur_big_freq_index > 0) {
 				set_big_freq(cur_big_freq_index - 1) ;
-				run_test(graph, order, n_frames, partition_point_1, partition_point_2);
+				run_test();
 
 				if (fps_condition && latency_condition) {
 					printf("Conditions still met, dropping more\n");
@@ -243,7 +277,7 @@ int main(int argc, char *argv[]) {
 
 			while(cur_little_freq_index > 0) {
 				set_little_freq(cur_little_freq_index - 1);
-				run_test(graph, order, n_frames, partition_point_1, partition_point_2);
+				run_test();
 
 				if (fps_condition && latency_condition) {
 					printf("Conditions still met, dropping more\n");
@@ -275,7 +309,7 @@ int main(int argc, char *argv[]) {
 
 		if (partition_point_2 < 7) {
 			if (cur_big_freq_index < max_big_freq_index) {
-				int deltaToMax = max_little_freq_index - cur_big_freq_index ;
+				int deltaToMax = max_little_freq_index - cur_big_freq_index;
 				set_big_freq(cur_big_freq_index + std::max(deltaToMax / 2, 1));
 				wasAbleToChangeFrequency = true;
 			}

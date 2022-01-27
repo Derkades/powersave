@@ -7,4 +7,4 @@ adb push Governor /data/local/workingdir/
 adb exec-out sh -c 'echo 0 > /sys/class/fan/mode'
 adb exec-out sh -c 'echo 1 > /sys/class/fan/enable'
 adb exec-out sh -c 'echo 4 > /sys/class/fan/level'
-adb exec-out sh -c 'cd /data/local/workingdir && chmod +x ./Governor && ./Governor graph_alexnet_all_pipe_sync 3 15 1000'
+adb exec-out sh -c 'cd /data/local/workingdir && chmod +x ./Governor && echo "15\n1000" > target.txt && ./Governor graph_alexnet_all_pipe_sync'
