@@ -269,13 +269,6 @@ void lower_power_consumption() {
  * lower_power_consumption().
  */
 void reach_target_performance() {
-	if (target_fps > 11) {
-
-	} else {
-		printf("Low FPS target, we can get by without using the GPU");
-
-	}
-
 	run_test();
 
 	if (fps_condition && latency_condition) {
@@ -284,16 +277,18 @@ void reach_target_performance() {
 		return;
 	}
 
+	set_little_freq(max_little_freq_index);
+
 	bool wasAbleToChangeFrequency = false;
-	if (partition_point_1 > 0) {
-		if (cur_little_freq_index < max_little_freq_index) {
-			int deltaToMax = max_big_freq_index - cur_little_freq_index;
-			set_little_freq(cur_little_freq_index + std::max(deltaToMax / 2, 1));
-			wasAbleToChangeFrequency = true;
-		}
-	} else {
-		set_little_freq(0);
-	}
+	// if (partition_point_1 > 0) {
+	// 	if (cur_little_freq_index < max_little_freq_index) {
+	// 		int deltaToMax = max_big_freq_index - cur_little_freq_index;
+	// 		set_little_freq(cur_little_freq_index + std::max(deltaToMax / 2, 1));
+	// 		wasAbleToChangeFrequency = true;
+	// 	}
+	// } else {
+	// 	set_little_freq(0);
+	// }
 
 	if (partition_point_2 < 7) {
 		if (cur_big_freq_index < max_big_freq_index) {
