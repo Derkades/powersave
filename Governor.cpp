@@ -25,8 +25,8 @@ int cur_big_freq_index = 0;
 int max_little_freq_index = 8;
 int max_big_freq_index = 12;
 
-int partition_point_1;
-int partition_point_2;
+int partition_point_1 = 1;
+int partition_point_2 = 1;
 
 std::string graph;
 std::string order;
@@ -269,6 +269,13 @@ void lower_power_consumption() {
  * lower_power_consumption().
  */
 void reach_target_performance() {
+	if (target_fps > 11) {
+
+	} else {
+		printf("Low FPS target, we can get by without using the GPU");
+
+	}
+
 	run_test();
 
 	if (fps_condition && latency_condition) {
@@ -298,10 +305,21 @@ void reach_target_performance() {
 		set_big_freq(0);
 	}
 
-	if (!wasAbleToChangeFrequency &&
-		partition_point_2 == 6) {
-		printf("Partition point 2: 6->5\n");
-		partition_point_2 = 5;
+	if (!wasAbleToChangeFrequency) {
+		if (partition_point_1 == 1 &&
+				partition_point_2 == 1) {
+			printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
+			partition_point_1 = 1;
+			partition_point_2 = 6;
+			set_big_freq(max_big_freq_index/2);
+			set_little_freq(max_little_freq_index/2);
+		} else if (partition_point_2 == 6) {
+			printf("Performance still not good enough, use a little more of the big CPU\n");
+			printf("Partition point 2: 6->5\n");
+			partition_point_2 = 5;
+		} else {
+			printf("Performance still not good enough, but there's nothing we can do.\n");
+		}
 	}
 
 	// if (stage_one_inference_time < stage_three_inference_time) {
@@ -366,17 +384,6 @@ int main(int argc, char *argv[]) {
 	// system(command.c_str());
 	// command = "echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
 	// system(command.c_str());
-
-	if (target_fps > 11) {
-		printf("High fps target, using GPU and pre-raising big/little clock\n");
-		partition_point_1 = 1;
-		partition_point_2 = 6;
-		set_big_freq(max_big_freq_index/2);
-		set_little_freq(max_little_freq_index/2);
-	} else {
-		partition_point_1 = 1;
-		partition_point_2 = 1;
-	}
 
 	update_target();
 	reach_target_performance();
