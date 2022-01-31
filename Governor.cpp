@@ -39,100 +39,100 @@ int target_latency = 0;
 bool latency_condition = false;
 bool fps_condition = false;
 
-float StageOneInferenceTime = 0;
-float StageTwoInferenceTime = 0;
-float StageThreeInferenceTime = 0;
+bool target_changed = false; // Set to true when target has changed, set to false when target is reached
 
+float stage_one_inference_time = 0;
+float stage_two_inference_time = 0;
+float stage_three_inference_time = 0;
 
 /* Get feedback by parsing the results */
 void ParseResults() {
-	float FPS;
-	float Latency;
+	float fps;
+	float latency;
 	ifstream myfile("output.txt");
 	cout << endl;
 	/* Read Output.txt File and Extract Data */
-	for( std::string line; getline( myfile, line ); )
-	{
+	for (std::string line; getline(myfile, line); ) {
 		string temp;
 		/* Extract Frame Rate */
-		if ( line.find("Frame rate is:")==0 ){
+		if (line.find("Frame rate is:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> FPS) {
-					printf("Throughput is: %f FPS\n", FPS);
+				if (stringstream(temp) >> fps) {
+					printf("Throughput is: %f fps\n", fps);
 					break;
 				}
 				temp = "";
 			}
 		}
-		/* Extract Frame Latency */
-		if ( line.find("Frame latency is:")==0 ){
+		/* Extract Frame latency */
+		if (line.find("Frame latency is:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> Latency){
-					printf("Latency is: %f ms\n", Latency);
+				if (stringstream(temp) >> latency){
+					printf("latency is: %f ms\n", latency);
 					break;
 				}
 				temp = "";
 			}
 		}
 		/* Extract Stage One Inference Time */
-		if (line.find("stage1_inference_time:")==0 ){
+		if (line.find("stage1_inference_time:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> StageOneInferenceTime){
-					//printf("StageOneInferenceTime is: %f ms\n", StageOneInferenceTime);
+				if (stringstream(temp) >> stage_one_inference_time){
+					//printf("stage_one_inference_time is: %f ms\n", stage_one_inference_time);
 					break;
 				}
 				temp = "";
 			}
 		}
 		/* Extract Stage Two Inference Time */
-		if (line.find("stage2_inference_time:")==0 ){
+		if (line.find("stage2_inference_time:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> StageTwoInferenceTime){
-					//printf("StageTwoInferenceTime is: %f ms\n", StageTwoInferenceTime);
+				if (stringstream(temp) >> stage_two_inference_time){
+					//printf("stage_two_inference_time is: %f ms\n", stage_two_inference_time);
 					break;
 				}
 				temp = "";
 			}
 		}
 		/* Extract Stage Three Inference Time */
-		if (line.find("stage3_inference_time:")==0 ){
+		if (line.find("stage3_inference_time:") == 0) {
 			//cout<<"line is: "<<line<<std::endl;
 			std::istringstream ss(line);
 			while (!ss.eof()) {
 				/* extracting word by word from stream */
 				ss >> temp;
 				/* Checking the given word is float or not */
-				if (stringstream(temp) >> StageThreeInferenceTime){
-					//printf("StageThreeInferenceTime is: %f ms\n", StageThreeInferenceTime);
+				if (stringstream(temp) >> stage_three_inference_time) {
+					//printf("stage_three_inference_time is: %f ms\n", stage_three_inference_time);
 					break;
 				}
 				temp = "";
 			}
 		}
 	}
-	/* Check Throughput and Latency Constraints */
-	latency_condition = Latency <= target_latency;
-	fps_condition = FPS >= target_fps;
+	/* Check Throughput and latency Constraints */
+	latency_condition = latency <= target_latency;
+	fps_condition = fps >= target_fps;
 }
 
 void run_test() {
@@ -145,7 +145,7 @@ void run_test() {
 
 	ParseResults();
 
-	printf("Inference stage times: %.2f %.2f %.2f\n", StageOneInferenceTime, StageTwoInferenceTime, StageThreeInferenceTime);
+	printf("Inference stage times: %.2f %.2f %.2f\n", stage_one_inference_time, stage_two_inference_time, stage_three_inference_time);
 }
 
 
@@ -173,7 +173,7 @@ void update_target() {
 		perror("target_fps read");
 		exit(1);
 	}
-	target_fps = (int) strtol(line.c_str(), NULL, 10);
+	int new_target_fps = (int) strtol(line.c_str(), NULL, 10);
 	if (errno != 0) {
 		perror("target_fps format");
 		exit(1);
@@ -183,12 +183,151 @@ void update_target() {
 		perror("target_latency read");
 		exit(1);
 	}
-	target_latency = (int) strtol(line.c_str(), NULL, 10);
+	int new_target_latency = (int) strtol(line.c_str(), NULL, 10);
 	if (errno != 0) {
 		perror("target_latency format");
 		exit(1);
 	}
-	printf("Target FPS is %d, target latency is %d\n", target_fps, target_latency);
+
+	if (new_target_fps != target_fps) {
+		printf("Target FPS changed from %d to %d\n", target_fps, new_target_fps);
+		target_fps = new_target_fps;
+		target_changed = true;
+	}
+
+	if (new_target_latency != target_latency) {
+		printf("Target latency changed from %d to %d\n", target_latency, new_target_latency);
+		target_latency = new_target_latency;
+		target_changed = true;
+	}
+}
+
+void reach_target_performance();
+
+/*
+ * In this stage, the governor will keep runnning the test over and over again until the target has changed or
+ * performance is no longer satisfactory for some other reason
+ */
+void steady_state() {
+	update_target();
+	run_test();
+
+	if (target_changed ||
+			!fps_condition ||
+			!latency_condition) {
+		reach_target_performance();
+		return;
+	}
+
+	steady_state();
+}
+
+/*
+ * In this stage, the governor will lower power consumption as much as possible while keeping the performance target satisfied
+ */
+void lower_power_consumption() {
+	while (cur_big_freq_index > 0) {
+		set_big_freq(cur_big_freq_index - 1) ;
+		run_test();
+
+		if (fps_condition && latency_condition) {
+			printf("Conditions still met, dropping more\n");
+			continue;
+		} else {
+			printf("Conditions now failing, restore frequency\n");
+			set_big_freq(cur_big_freq_index + 1);
+			break;
+		}
+	}
+
+	printf("Now try backing off little CPU freq\n");
+
+	while(cur_little_freq_index > 0) {
+		set_little_freq(cur_little_freq_index - 1);
+		run_test();
+
+		if (fps_condition && latency_condition) {
+			printf("Conditions still met, dropping more\n");
+			continue;
+		} else {
+			printf("Conditions now failing, restore frequency\n");
+			set_little_freq(cur_little_freq_index + 1);
+			break;
+		}
+	}
+
+	printf("Solution was found.\n big_freq: %d \t little_freq: %d \t partition_point_1: %d \t partition_point_2: %d \t order: %s\n",
+			BigFrequencyTable[cur_big_freq_index], LittleFrequencyTable[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
+
+	target_changed = false;
+	steady_state();
+}
+
+/*
+ * In this stage, the governor will do what it can to reach target throughput and latency.
+ * It won't care as much about low power consumption. After reaching its target, it calls
+ * lower_power_consumption().
+ */
+void reach_target_performance() {
+	run_test();
+
+	if (fps_condition && latency_condition) {
+		printf("Latency and throughput targets met.\n");
+		lower_power_consumption();
+		return;
+	}
+
+	bool wasAbleToChangeFrequency = false;
+	if (partition_point_1 > 0) {
+		if (cur_little_freq_index < max_little_freq_index) {
+			int deltaToMax = max_big_freq_index - cur_little_freq_index;
+			set_little_freq(cur_little_freq_index + std::max(deltaToMax / 2, 1));
+			wasAbleToChangeFrequency = true;
+		}
+	} else {
+		set_little_freq(0);
+	}
+
+	if (partition_point_2 < 7) {
+		if (cur_big_freq_index < max_big_freq_index) {
+			int deltaToMax = max_little_freq_index - cur_big_freq_index;
+			set_big_freq(cur_big_freq_index + std::max(deltaToMax / 2, 1));
+			wasAbleToChangeFrequency = true;
+		}
+	} else {
+		set_big_freq(0);
+	}
+
+	if (!wasAbleToChangeFrequency &&
+		partition_point_2 == 6) {
+		printf("Partition point 2: 6->5\n");
+		partition_point_2 = 5;
+	}
+
+	// if (stage_one_inference_time < stage_three_inference_time) {
+	// if (partition_point_2 > 5) {
+	// 	if (partition_point_2 < 5) {
+	// 		/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
+	// 		partition_point_2 = partition_point_2 + 1;
+	// 		printf("Reducing the Size of Pipeline Partition 3\n");
+	// 	} else {
+	// 		printf("No Solution Found\n");
+	// 		break;
+	// 	}
+	// } else {
+	// 	if (partition_point_1 > 1) {
+	// 		/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
+	// 		partition_point_1 = partition_point_1 - 1;
+	// 		printf("Reducing the Size of Pipeline Partition 1\n");
+	// 	} else{
+	// 		printf("No Solution Found\n");
+	// 		break;
+	// 	}
+	// }
+	// }
+
+	// Try again
+	reach_target_performance();
 }
 
 int main(int argc, char *argv[]) {
@@ -229,7 +368,7 @@ int main(int argc, char *argv[]) {
 	// system(command.c_str());
 
 	if (target_fps > 11) {
-		printf("High FPS target, using GPU and pre-raising big/little clock\n");
+		printf("High fps target, using GPU and pre-raising big/little clock\n");
 		partition_point_1 = 1;
 		partition_point_2 = 6;
 		set_big_freq(max_big_freq_index/2);
@@ -239,111 +378,8 @@ int main(int argc, char *argv[]) {
 		partition_point_2 = 1;
 	}
 
-	while(true) {
-		update_target();
-		run_test();
-
-		if (fps_condition && latency_condition) {
-			printf("Latency and throughput targets met.\n");
-
-			// while(partition_point_2 > partition_point_1) {
-			// 	printf("Moving some GPU workload to big CPU\n");
-			// 	partition_point_2--;
-			// 	run_test(graph, order, n_frames, partition_point_1, partition_point_2);
-			// 	if (!fps_condition || !latency_condition) {
-			// 		printf("Conditions no longer met, restoring partition size\n");
-			// 		partition_point_2++;
-			// 		break;
-			// 	} else {
-			// 		printf("Conditions still met, lower GPU usage further\n");
-			// 	}
-			// }
-
-			while (cur_big_freq_index > 0) {
-				set_big_freq(cur_big_freq_index - 1) ;
-				run_test();
-
-				if (fps_condition && latency_condition) {
-					printf("Conditions still met, dropping more\n");
-					continue;
-				} else {
-					printf("Conditions now failing, restore frequency\n");
-					set_big_freq(cur_big_freq_index + 1);
-					break;
-				}
-			}
-
-			printf("Now try backing off little CPU freq\n");
-
-			while(cur_little_freq_index > 0) {
-				set_little_freq(cur_little_freq_index - 1);
-				run_test();
-
-				if (fps_condition && latency_condition) {
-					printf("Conditions still met, dropping more\n");
-					continue;
-				} else {
-					printf("Conditions now failing, restore frequency\n");
-					set_little_freq(cur_little_freq_index + 1);
-					break;
-				}
-			}
-
-			printf("Solution Was Found.\n TargetBigFrequency:%d \t TargetLittleFrequency:%d \t partition_point_1:%d \t partition_point_2:%d \t Order:%s\n",
-			BigFrequencyTable[cur_big_freq_index], LittleFrequencyTable[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
-			break;
-		}
-
-		printf("Target performance not satisfied\n\n");
-
-		bool wasAbleToChangeFrequency = false;
-		if (partition_point_1 > 0) {
-			if (cur_little_freq_index < max_little_freq_index) {
-				int deltaToMax = max_big_freq_index - cur_little_freq_index;
-				set_little_freq(cur_little_freq_index + std::max(deltaToMax / 2, 1));
-				wasAbleToChangeFrequency = true;
-			}
-		} else {
-			set_little_freq(0);
-		}
-
-		if (partition_point_2 < 7) {
-			if (cur_big_freq_index < max_big_freq_index) {
-				int deltaToMax = max_little_freq_index - cur_big_freq_index;
-				set_big_freq(cur_big_freq_index + std::max(deltaToMax / 2, 1));
-				wasAbleToChangeFrequency = true;
-			}
-		} else {
-			set_big_freq(0);
-		}
-
-		if (!wasAbleToChangeFrequency) {
-			if (partition_point_2 == 6) {
-				printf("Partition point 2: 6->5\n");
-				partition_point_2 = 5;
-			}
-			// if (StageOneInferenceTime < StageThreeInferenceTime) {
-			// if (partition_point_2 > 5) {
-			// 	if (partition_point_2 < 5) {
-			// 		/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
-			// 		partition_point_2 = partition_point_2 + 1;
-			// 		printf("Reducing the Size of Pipeline Partition 3\n");
-			// 	} else {
-			// 		printf("No Solution Found\n");
-			// 		break;
-			// 	}
-			// } else {
-			// 	if (partition_point_1 > 1) {
-			// 		/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
-			// 		partition_point_1 = partition_point_1 - 1;
-			// 		printf("Reducing the Size of Pipeline Partition 1\n");
-			// 	} else{
-			// 		printf("No Solution Found\n");
-			// 		break;
-			// 	}
-			// }
-		}
-	}
+	update_target();
+	reach_target_performance();
 
   	return 0;
 }
