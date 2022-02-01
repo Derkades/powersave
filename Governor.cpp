@@ -213,13 +213,14 @@ void update_target() {
 	}
 }
 
-void reach_target_performance();
+void find_order();
 
 /*
  * In this stage, the governor will keep runnning the test over and over again until the target has changed or
  * performance is no longer satisfactory for some other reason
  */
 void steady_state() {
+	printf("Keep running test in a loop\n");
 	update_target();
 	run_test();
 
@@ -230,7 +231,7 @@ void steady_state() {
 			partition_point_1 = 1;
 			partition_point_2 = 1;
 		}
-		reach_target_performance();
+		find_order();
 		return;
 	}
 
@@ -260,9 +261,10 @@ void lower_core_freq_binary_search(int cpu_type) {
 }
 
 /*
- * In this stage, the governor will lower power consumption as much as possible while keeping the performance target satisfied
+ * In this stage, the governor will lower power consumption by reducing core
+ * frequencies as much as possible while keeping the performance target satisfied.
  */
-void lower_power_consumption() {
+void lower_frequencies() {
 	if (partition_point_1 == partition_point_2) {
 		printf("Shifting work from big CPU to little CPU\n");
 		while(partition_point_1 <= 7) {
@@ -281,8 +283,6 @@ void lower_power_consumption() {
 		}
 	}
 
-
-
 	printf("Now try backing off little CPU freq\n");
 	lower_core_freq_binary_search(CPU_BIG);
 	lower_core_freq_binary_search(CPU_LITTLE);
@@ -295,42 +295,104 @@ void lower_power_consumption() {
 }
 
 /*
+ * TODO Doc outdated, update
  * In this stage, the governor will do what it can to reach target throughput and latency.
  * It won't care as much about low power consumption. After reaching its target, it calls
  * lower_power_consumption().
  */
-void reach_target_performance() {
-	if (cur_little_freq_index != max_little_freq_index) {
-		set_core_freq(CPU_LITTLE, max_little_freq_index);
-	}
+void tune_partition_points() {
+	int success_partition_point_1 = partition_point_1;
+	int success_partition_point_2 = partition_point_2;
 
-	if (cur_big_freq_index != max_big_freq_index) {
-		set_core_freq(CPU_BIG, max_big_freq_index);
+	bool more_tests_available = true;
+	do {
+		if (order.compare("L-G-B")) {
+			// Try to get by with less big CPU
+			// Increasing GPU usage won't matter for power consumption
+			if (partition_point_2 == 5) {
+				partition_point_2 = 6;
+			} else {
+				more_tests_available = false;
+			}
+		} else {
+			// TODO Implement shifting partition points for other pipeline orders
+			more_tests_available = false;
+		}
+
+		run_test();
+
+		if (!safe_latency_condition || !safe_fps_condition) {
+			// Restore previous working partition points and move on to lowering frequencies
+			partition_point_1 = success_partition_point_1;
+			partition_point_2 = success_partition_point_2;
+			lower_frequencies();
+			return;
+		}
+
+		success_partition_point_1 = partition_point_1;
+		success_partition_point_2 = partition_point_2;
+		// Try more tests if available
+	} while (more_tests_available);
+
+	// No more tests available, performance still satisfactory
+	lower_frequencies();
+}
+
+void find_order() {
+	set_core_freq(CPU_LITTLE, max_little_freq_index);
+	set_core_freq(CPU_BIG, max_big_freq_index);
+
+	// Try LGB with GPU first, this is a balanced profile
+	order = "L-G-B";
+	partition_point_1 = 1;
+	partition_point_2 = 5;
+
+	run_test();
+
+	if (safe_latency_condition && safe_fps_condition) {
+		// Try to get by with LBG without GPU, the slowest profile but with lowest power consumption
+		order = "L-B-G";
+		partition_point_1 = 1;
+		partition_point_2 = 7;
+		run_test();
+		if (safe_latency_condition && safe_fps_condition) {
+			tune_partition_points();
+			return;
+		} else {
+			// Revert
+			order = "L-G-B";
+			partition_point_1 = 1;
+			partition_point_2 = 5;
+			tune_partition_points();
+			return;
+		}
+	} else if (safe_fps_condition && !safe_latency_condition) {
+		// FPS target met, latency target unment
+		// Try the very power hungry profile with extremely low latency
+		order = "B-G-L";
+		partition_point_1 = 6;
+		partition_point_2 = 6;
+	} else if (!safe_fps_condition && safe_latency_condition) {
+		// Higher throughput, don't care about latency that much
+		order = "GBL";
+		partition_point_1 = 4;
+		partition_point_2 = 6;
+	} else {
+		// TODO Don't exit, keep running somehow
+		printf("Impossible target\n");
+		exit(1);
 	}
 
 	run_test();
 
-	if (fps_condition && latency_condition) {
-		printf("Latency and throughput targets met.\n");
-		lower_power_consumption();
+	if (safe_fps_condition && safe_latency_condition) {
+		tune_partition_points();
 		return;
 	}
 
-	if (partition_point_1 == 1 &&
-			partition_point_2 == 1) {
-		printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
-		partition_point_1 = 1;
-		partition_point_2 = 6;
-	} else if (partition_point_2 == 6) {
-		printf("Performance still not good enough, use a little more of the big CPU\n");
-		printf("Partition point 2: 6->5\n");
-		partition_point_2 = 5;
-	} else {
-		printf("Performance still not good enough, but there's nothing we can do.\n");
-	}
-
-	// Try again
-	reach_target_performance();
+	// TODO Don't exit, keep running somehow
+	printf("Impossible target\n");
+	exit(1);
 }
 
 int main(int argc, char *argv[]) {
@@ -362,11 +424,11 @@ int main(int argc, char *argv[]) {
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy2/scaling_governor");
 
 	// Initialize little and big CPU with lowest frequency
-	set_core_freq(CPU_BIG, 0);
-	set_core_freq(CPU_LITTLE, 0);
+	// set_core_freq(CPU_BIG, 0);
+	// set_core_freq(CPU_LITTLE, 0);
 
 	update_target();
-	reach_target_performance();
+	find_order();
 
   	return 0;
 }
