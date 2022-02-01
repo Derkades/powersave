@@ -42,6 +42,7 @@ int achieved_latency = -1;
 
 bool latency_condition = false;
 bool fps_condition = false;
+bool safe_latency_condition = false;
 bool safe_fps_condition = false;
 
 bool target_changed = false; // Set to true when target has changed, set to false when target is reached
