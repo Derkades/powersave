@@ -331,29 +331,19 @@ void reach_target_performance() {
 	// 	set_little_freq(0);
 	// }
 
-	// if (partition_point_2 < 7) {
 	if (cur_big_freq_index < max_big_freq_index) {
 		float increaseFactor = (float) target_fps / (float) achieved_fps;
-		// int deltaToMax = max_little_freq_index - cur_big_freq_index;
 		int new_big_freq_index = std::max((int) (cur_big_freq_index * increaseFactor), max_big_freq_index);
 		if (new_big_freq_index == cur_big_freq_index) {
 			new_big_freq_index = cur_big_freq_index + 1;
 		}
 		set_big_freq(new_big_freq_index);
-		// wasAbleToChangeFrequency = true;
 	} else {
-	// } else {
-	// 	set_big_freq(0);
-	// }
-
-	// if (!wasAbleToChangeFrequency) {
 		if (partition_point_1 == 1 &&
 				partition_point_2 == 1) {
 			printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
 			partition_point_1 = 1;
 			partition_point_2 = 6;
-			// set_big_freq(max_big_freq_index/2);
-			// set_little_freq(max_little_freq_index/2);
 		} else if (partition_point_2 == 6) {
 			printf("Performance still not good enough, use a little more of the big CPU\n");
 			printf("Partition point 2: 6->5\n");
@@ -362,28 +352,6 @@ void reach_target_performance() {
 			printf("Performance still not good enough, but there's nothing we can do.\n");
 		}
 	}
-
-	// if (stage_one_inference_time < stage_three_inference_time) {
-	// if (partition_point_2 > 5) {
-	// 	if (partition_point_2 < 5) {
-	// 		/* Push Layers from Third Stage (Big CPU) to GPU to Meet Target Performance */
-	// 		partition_point_2 = partition_point_2 + 1;
-	// 		printf("Reducing the Size of Pipeline Partition 3\n");
-	// 	} else {
-	// 		printf("No Solution Found\n");
-	// 		break;
-	// 	}
-	// } else {
-	// 	if (partition_point_1 > 1) {
-	// 		/* Push Layers from First Stage (Little CPU) to GPU to Meet Target Performance */
-	// 		partition_point_1 = partition_point_1 - 1;
-	// 		printf("Reducing the Size of Pipeline Partition 1\n");
-	// 	} else{
-	// 		printf("No Solution Found\n");
-	// 		break;
-	// 	}
-	// }
-	// }
 
 	// Try again
 	reach_target_performance();
@@ -420,11 +388,6 @@ int main(int argc, char *argv[]) {
 	// Initialize little and big CPU with lowest frequency
 	set_big_freq(0);
 	set_little_freq(0);
-	// string command;
-	// command = "echo " + to_string(LittleFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
-	// system(command.c_str());
-	// command = "echo " + to_string(BigFrequencyTable[0]) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
-	// system(command.c_str());
 
 	update_target();
 	reach_target_performance();
