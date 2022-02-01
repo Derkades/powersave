@@ -176,6 +176,9 @@ void set_core_freq(int cpu_type, int new_freq_index)  {
 	}
 }
 
+/*
+ * Read target FPS and latency from text file so it can be updated at runtime
+ */
 void update_target() {
 	ifstream target_file("target.txt");
 	std::string line;
@@ -295,10 +298,9 @@ void lower_frequencies() {
 }
 
 /*
- * TODO Doc outdated, update
- * In this stage, the governor will do what it can to reach target throughput and latency.
- * It won't care as much about low power consumption. After reaching its target, it calls
- * lower_power_consumption().
+ * In this stage, the governor will try to lower power consumption by shifting
+ * partition points, staying in a given order. For example, it will try to shift
+ * one partitionable section from the big CPU to the GPU.
  */
 void tune_partition_points() {
 	int success_partition_point_1 = partition_point_1;
