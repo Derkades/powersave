@@ -16,6 +16,8 @@ On the Board:
 #include <errno.h>
 using namespace std;
 
+#define FPS_VARITATION_CONSTANT 1.007
+
 int LittleFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
 int BigFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
 
@@ -35,9 +37,12 @@ int n_frames;
 int partitions = 0;
 int target_fps = 0;
 int target_latency = 0;
+int achieved_fps = -1;
+int achieved_latency = -1;
 
 bool latency_condition = false;
 bool fps_condition = false;
+bool safe_fps_condition = false;
 
 bool target_changed = false; // Set to true when target has changed, set to false when target is reached
 
@@ -133,6 +138,10 @@ void ParseResults() {
 	/* Check Throughput and latency Constraints */
 	latency_condition = latency <= target_latency;
 	fps_condition = fps >= target_fps;
+	safe_latency_condition = latency * FPS_VARITATION_CONSTANT <= target_latency;
+	safe_fps_condition = fps >= target_fps * FPS_VARITATION_CONSTANT;
+	achieved_latency = latency;
+	achieved_fps = fps;
 }
 
 void run_test() {
@@ -215,6 +224,10 @@ void steady_state() {
 	if (target_changed ||
 			!fps_condition ||
 			!latency_condition) {
+		if (target_changed) {
+			partition_point_1 = 1;
+			partition_point_2 = 1;
+		}
 		reach_target_performance();
 		return;
 	}
@@ -226,11 +239,28 @@ void steady_state() {
  * In this stage, the governor will lower power consumption as much as possible while keeping the performance target satisfied
  */
 void lower_power_consumption() {
+	if (partition_point_1 == partition_point_2) {
+		printf("Shifting work from big CPU to little CPU\n");
+		while(partition_point_1 <= 7) {
+			partition_point_1++;
+			partition_point_2++;
+			run_test();
+			if (safe_fps_condition && safe_latency_condition) {
+				printf("Conditions still met, shifting more\n");
+				continue;
+			} else {
+				printf("Conditions now failing, restore partition points\n");
+				partition_point_1--;
+				partition_point_2--;
+				break;
+			}
+		}
+	}
 	while (cur_big_freq_index > 0) {
 		set_big_freq(cur_big_freq_index - 1) ;
 		run_test();
 
-		if (fps_condition && latency_condition) {
+		if (safe_fps_condition && safe_latency_condition) {
 			printf("Conditions still met, dropping more\n");
 			continue;
 		} else {
@@ -246,7 +276,7 @@ void lower_power_consumption() {
 		set_little_freq(cur_little_freq_index - 1);
 		run_test();
 
-		if (fps_condition && latency_condition) {
+		if (safe_fps_condition && safe_latency_condition) {
 			printf("Conditions still met, dropping more\n");
 			continue;
 		} else {
@@ -269,6 +299,18 @@ void lower_power_consumption() {
  * lower_power_consumption().
  */
 void reach_target_performance() {
+	if (cur_little_freq_index != max_little_freq_index) {
+		set_little_freq(max_little_freq_index);
+	}
+
+	if (cur_big_freq_index != max_big_freq_index) {
+		set_big_freq(max_big_freq_index);
+	}
+
+	// if (cur_big_freq_index == 0) {
+	// 	new_big_freq_index =
+	// }
+
 	run_test();
 
 	if (fps_condition && latency_condition) {
@@ -277,9 +319,7 @@ void reach_target_performance() {
 		return;
 	}
 
-	set_little_freq(max_little_freq_index);
-
-	bool wasAbleToChangeFrequency = false;
+	// bool wasAbleToChangeFrequency = false;
 	// if (partition_point_1 > 0) {
 	// 	if (cur_little_freq_index < max_little_freq_index) {
 	// 		int deltaToMax = max_big_freq_index - cur_little_freq_index;
@@ -290,24 +330,29 @@ void reach_target_performance() {
 	// 	set_little_freq(0);
 	// }
 
-	if (partition_point_2 < 7) {
-		if (cur_big_freq_index < max_big_freq_index) {
-			int deltaToMax = max_little_freq_index - cur_big_freq_index;
-			set_big_freq(cur_big_freq_index + std::max(deltaToMax / 2, 1));
-			wasAbleToChangeFrequency = true;
+	// if (partition_point_2 < 7) {
+	if (cur_big_freq_index < max_big_freq_index) {
+		float increaseFactor = (float) target_fps / (float) achieved_fps;
+		// int deltaToMax = max_little_freq_index - cur_big_freq_index;
+		int new_big_freq_index = std::max((int) (cur_big_freq_index * increaseFactor), max_big_freq_index);
+		if (new_big_freq_index == cur_big_freq_index) {
+			new_big_freq_index = cur_big_freq_index + 1;
 		}
+		set_big_freq(new_big_freq_index);
+		// wasAbleToChangeFrequency = true;
 	} else {
-		set_big_freq(0);
-	}
+	// } else {
+	// 	set_big_freq(0);
+	// }
 
-	if (!wasAbleToChangeFrequency) {
+	// if (!wasAbleToChangeFrequency) {
 		if (partition_point_1 == 1 &&
 				partition_point_2 == 1) {
 			printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
 			partition_point_1 = 1;
 			partition_point_2 = 6;
-			set_big_freq(max_big_freq_index/2);
-			set_little_freq(max_little_freq_index/2);
+			// set_big_freq(max_big_freq_index/2);
+			// set_little_freq(max_little_freq_index/2);
 		} else if (partition_point_2 == 6) {
 			printf("Performance still not good enough, use a little more of the big CPU\n");
 			printf("Partition point 2: 6->5\n");
