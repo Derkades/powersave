@@ -287,23 +287,6 @@ void lower_power_consumption() {
 	lower_core_freq_binary_search(CPU_BIG);
 	lower_core_freq_binary_search(CPU_LITTLE);
 
-	// lo = 0;
-	// hi = max_little_freq_index;
-
-	// while(cur_little_freq_index > 0) {
-	// 	set_little_freq(cur_little_freq_index - 1);
-	// 	run_test();
-
-	// 	if (safe_fps_condition && safe_latency_condition) {
-	// 		printf("Conditions still met, dropping more\n");
-	// 		continue;
-	// 	} else {
-	// 		printf("Conditions now failing, restore frequency\n");
-	// 		set_little_freq(cur_little_freq_index + 1);
-	// 		break;
-	// 	}
-	// }
-
 	printf("Solution was found.\n big_freq: %d \t little_freq: %d \t partition_point_1: %d \t partition_point_2: %d \t order: %s\n",
 			BigFrequencyTable[cur_big_freq_index], LittleFrequencyTable[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
 
@@ -325,10 +308,6 @@ void reach_target_performance() {
 		set_core_freq(CPU_BIG, max_big_freq_index);
 	}
 
-	// if (cur_big_freq_index == 0) {
-	// 	new_big_freq_index =
-	// }
-
 	run_test();
 
 	if (fps_condition && latency_condition) {
@@ -337,25 +316,6 @@ void reach_target_performance() {
 		return;
 	}
 
-	// bool wasAbleToChangeFrequency = false;
-	// if (partition_point_1 > 0) {
-	// 	if (cur_little_freq_index < max_little_freq_index) {
-	// 		int deltaToMax = max_big_freq_index - cur_little_freq_index;
-	// 		set_little_freq(cur_little_freq_index + std::max(deltaToMax / 2, 1));
-	// 		wasAbleToChangeFrequency = true;
-	// 	}
-	// } else {
-	// 	set_little_freq(0);
-	// }
-
-	// if (cur_big_freq_index < max_big_freq_index) {
-	// 	float increaseFactor = (float) target_fps / (float) achieved_fps;
-	// 	int new_big_freq_index = std::max((int) (cur_big_freq_index * increaseFactor), max_big_freq_index);
-	// 	if (new_big_freq_index == cur_big_freq_index) {
-	// 		new_big_freq_index = cur_big_freq_index + 1;
-	// 	}
-	// 	set_big_freq(new_big_freq_index);
-	// } else {
 	if (partition_point_1 == 1 &&
 			partition_point_2 == 1) {
 		printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
@@ -368,7 +328,6 @@ void reach_target_performance() {
 	} else {
 		printf("Performance still not good enough, but there's nothing we can do.\n");
 	}
-	// }
 
 	// Try again
 	reach_target_performance();
