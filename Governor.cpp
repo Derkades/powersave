@@ -20,8 +20,8 @@ using namespace std;
 #define CPU_LITTLE 0
 #define CPU_BIG 2
 
-int LittleFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
-int BigFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
+int little_freq_table[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
+int big_freq_table[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
 
 int cur_little_freq_index = 0;
 int cur_big_freq_index = 0;
@@ -162,7 +162,7 @@ void run_test() {
 
 
 void set_core_freq(int cpu_type, int new_freq_index)  {
-	int new_freq = cpu_type == CPU_BIG ? BigFrequencyTable[new_freq_index] : LittleFrequencyTable[new_freq_index];
+	int new_freq = cpu_type == CPU_BIG ? big_freq_table[new_freq_index] : little_freq_table[new_freq_index];
 	string command = "echo " + to_string(new_freq) + " > /sys/devices/system/cpu/cpufreq/policy" + to_string(cpu_type) + "/scaling_max_freq";
 	system(command.c_str());
 	const char *cpu_type_str = cpu_type == CPU_BIG ? "big" : "little";
@@ -288,7 +288,7 @@ void lower_frequencies() {
 	lower_core_freq_binary_search(CPU_LITTLE);
 
 	printf("Solution was found.\n big_freq: %d \t little_freq: %d \t partition_point_1: %d \t partition_point_2: %d \t order: %s\n",
-			BigFrequencyTable[cur_big_freq_index], LittleFrequencyTable[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
+			big_freq_table[cur_big_freq_index], little_freq_table[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
 
 	target_changed = false;
 	steady_state();
