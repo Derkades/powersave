@@ -17,6 +17,8 @@ On the Board:
 using namespace std;
 
 #define FPS_VARITATION_CONSTANT 1.007
+#define CPU_LITTLE 0
+#define CPU_BIG 2
 
 int LittleFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000};
 int BigFrequencyTable[] = {500000, 667000, 1000000, 1200000, 1398000, 1512000, 1608000, 1704000, 1800000, 1908000, 2016000, 2100000, 2208000};
@@ -159,20 +161,19 @@ void run_test() {
 }
 
 
-void set_big_freq(int new_big_freq_index)  {
-	int new_freq = BigFrequencyTable[new_big_freq_index];
-	string command = "echo " + to_string(new_freq) + " > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq";
+void set_core_freq(int cpu_type, int new_freq_index)  {
+	int new_freq = cpu_type == CPU_BIG ? BigFrequencyTable[new_freq_index] : LittleFrequencyTable[new_freq_index];
+	string command = "echo " + to_string(new_freq) + " > /sys/devices/system/cpu/cpufreq/policy" + to_string(cpu_type) + "/scaling_max_freq";
 	system(command.c_str());
-	printf("Setting frequency of big cores from %d to %d (%d)\n", cur_big_freq_index, new_big_freq_index, new_freq);
-	cur_big_freq_index = new_big_freq_index;
-}
-
-void set_little_freq(int new_little_freq_index)  {
-	int new_freq = LittleFrequencyTable[new_little_freq_index];
-	string command = "echo " + to_string(new_freq) + " > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
-	system(command.c_str());
-	printf("Setting frequency of little cores from %d to %d (%d)\n", cur_little_freq_index, new_little_freq_index, new_freq);
-	cur_little_freq_index = new_little_freq_index;
+	const char *cpu_type_str = cpu_type == CPU_BIG ? "big" : "little";
+	int cur_freq_index = cpu_type == CPU_BIG ? cur_big_freq_index : cur_little_freq_index;
+	printf("Setting frequency of %s cores from %d to %d (%d)\n", cpu_type_str, cur_freq_index, new_freq_index, new_freq);
+	// cur_big_freq_index = new_big_freq_index;
+	if (cpu_type == CPU_BIG) {
+		cur_big_freq_index = new_freq_index;
+	} else {
+		cur_little_freq_index = new_freq_index;
+	}
 }
 
 void update_target() {
@@ -236,6 +237,28 @@ void steady_state() {
 	steady_state();
 }
 
+void lower_core_freq_binary_search(int cpu_type) {
+	int lo = 0;
+	int hi = cpu_type == CPU_BIG ? max_big_freq_index : max_little_freq_index;
+
+	while (hi != lo) {
+		int mid = (lo + hi) / 2;
+		printf("binary search lo=%d hi=%d mid=%d\n", lo, hi, mid);
+		set_core_freq(cpu_type, mid);
+
+		run_test();
+
+		if (safe_fps_condition && safe_latency_condition) {
+			printf("Conditions still met\n");
+			hi = mid;
+		} else {
+			printf("Conditions now failing\n");
+			lo = mid + 1;
+		}
+	}
+	set_core_freq(cpu_type, hi);
+}
+
 /*
  * In this stage, the governor will lower power consumption as much as possible while keeping the performance target satisfied
  */
@@ -257,35 +280,29 @@ void lower_power_consumption() {
 			}
 		}
 	}
-	while (cur_big_freq_index > 0) {
-		set_big_freq(cur_big_freq_index - 1) ;
-		run_test();
 
-		if (safe_fps_condition && safe_latency_condition) {
-			printf("Conditions still met, dropping more\n");
-			continue;
-		} else {
-			printf("Conditions now failing, restore frequency\n");
-			set_big_freq(cur_big_freq_index + 1);
-			break;
-		}
-	}
+
 
 	printf("Now try backing off little CPU freq\n");
+	lower_core_freq_binary_search(CPU_BIG);
+	lower_core_freq_binary_search(CPU_LITTLE);
 
-	while(cur_little_freq_index > 0) {
-		set_little_freq(cur_little_freq_index - 1);
-		run_test();
+	// lo = 0;
+	// hi = max_little_freq_index;
 
-		if (safe_fps_condition && safe_latency_condition) {
-			printf("Conditions still met, dropping more\n");
-			continue;
-		} else {
-			printf("Conditions now failing, restore frequency\n");
-			set_little_freq(cur_little_freq_index + 1);
-			break;
-		}
-	}
+	// while(cur_little_freq_index > 0) {
+	// 	set_little_freq(cur_little_freq_index - 1);
+	// 	run_test();
+
+	// 	if (safe_fps_condition && safe_latency_condition) {
+	// 		printf("Conditions still met, dropping more\n");
+	// 		continue;
+	// 	} else {
+	// 		printf("Conditions now failing, restore frequency\n");
+	// 		set_little_freq(cur_little_freq_index + 1);
+	// 		break;
+	// 	}
+	// }
 
 	printf("Solution was found.\n big_freq: %d \t little_freq: %d \t partition_point_1: %d \t partition_point_2: %d \t order: %s\n",
 			BigFrequencyTable[cur_big_freq_index], LittleFrequencyTable[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
@@ -301,11 +318,11 @@ void lower_power_consumption() {
  */
 void reach_target_performance() {
 	if (cur_little_freq_index != max_little_freq_index) {
-		set_little_freq(max_little_freq_index);
+		set_core_freq(CPU_LITTLE, max_little_freq_index);
 	}
 
 	if (cur_big_freq_index != max_big_freq_index) {
-		set_big_freq(max_big_freq_index);
+		set_core_freq(CPU_BIG, max_big_freq_index);
 	}
 
 	// if (cur_big_freq_index == 0) {
@@ -331,27 +348,27 @@ void reach_target_performance() {
 	// 	set_little_freq(0);
 	// }
 
-	if (cur_big_freq_index < max_big_freq_index) {
-		float increaseFactor = (float) target_fps / (float) achieved_fps;
-		int new_big_freq_index = std::max((int) (cur_big_freq_index * increaseFactor), max_big_freq_index);
-		if (new_big_freq_index == cur_big_freq_index) {
-			new_big_freq_index = cur_big_freq_index + 1;
-		}
-		set_big_freq(new_big_freq_index);
+	// if (cur_big_freq_index < max_big_freq_index) {
+	// 	float increaseFactor = (float) target_fps / (float) achieved_fps;
+	// 	int new_big_freq_index = std::max((int) (cur_big_freq_index * increaseFactor), max_big_freq_index);
+	// 	if (new_big_freq_index == cur_big_freq_index) {
+	// 		new_big_freq_index = cur_big_freq_index + 1;
+	// 	}
+	// 	set_big_freq(new_big_freq_index);
+	// } else {
+	if (partition_point_1 == 1 &&
+			partition_point_2 == 1) {
+		printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
+		partition_point_1 = 1;
+		partition_point_2 = 6;
+	} else if (partition_point_2 == 6) {
+		printf("Performance still not good enough, use a little more of the big CPU\n");
+		printf("Partition point 2: 6->5\n");
+		partition_point_2 = 5;
 	} else {
-		if (partition_point_1 == 1 &&
-				partition_point_2 == 1) {
-			printf("FPS target still not reached with max clocks, using GPU is required to reach target performance\n");
-			partition_point_1 = 1;
-			partition_point_2 = 6;
-		} else if (partition_point_2 == 6) {
-			printf("Performance still not good enough, use a little more of the big CPU\n");
-			printf("Partition point 2: 6->5\n");
-			partition_point_2 = 5;
-		} else {
-			printf("Performance still not good enough, but there's nothing we can do.\n");
-		}
+		printf("Performance still not good enough, but there's nothing we can do.\n");
 	}
+	// }
 
 	// Try again
 	reach_target_performance();
@@ -386,8 +403,8 @@ int main(int argc, char *argv[]) {
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy2/scaling_governor");
 
 	// Initialize little and big CPU with lowest frequency
-	set_big_freq(0);
-	set_little_freq(0);
+	set_core_freq(CPU_BIG, 0);
+	set_core_freq(CPU_LITTLE, 0);
 
 	update_target();
 	reach_target_performance();
