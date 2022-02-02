@@ -303,13 +303,8 @@ void tune_partition_points() {
 				more_tests_available = false;
 			}
 		} else if (order.compare("G-B-L")) {
-			// if (partition_point_1 == 4) {
-			// 	partition_point_1 = 3;
-			// } else {
-				more_tests_available = false;
-			// }
+			more_tests_available = false;
 		} else {
-			// TODO Implement shifting partition points for other pipeline orders
 			more_tests_available = false;
 		}
 
