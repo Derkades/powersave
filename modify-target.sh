@@ -9,4 +9,4 @@ fi
 
 CONTENT="$1\n$2"
 
-adb exec-out sh -c "echo \"$CONTENT\" > target.txt"
+adb exec-out sh -c "echo \"$CONTENT\" > /data/local/workingdir/target.txt"

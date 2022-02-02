@@ -16,7 +16,7 @@ On the Board:
 #include <errno.h>
 using namespace std;
 
-#define FPS_VARITATION_CONSTANT 1.007
+#define FPS_VARIATION_CONSTANT 1.01
 #define CPU_LITTLE 0
 #define CPU_BIG 2
 
@@ -46,8 +46,6 @@ bool latency_condition = false;
 bool fps_condition = false;
 bool safe_latency_condition = false;
 bool safe_fps_condition = false;
-
-bool target_changed = false; // Set to true when target has changed, set to false when target is reached
 
 float stage_one_inference_time = 0;
 float stage_two_inference_time = 0;
@@ -141,8 +139,8 @@ void ParseResults() {
 	/* Check Throughput and latency Constraints */
 	latency_condition = latency <= target_latency;
 	fps_condition = fps >= target_fps;
-	safe_latency_condition = latency * FPS_VARITATION_CONSTANT <= target_latency;
-	safe_fps_condition = fps >= target_fps * FPS_VARITATION_CONSTANT;
+	safe_latency_condition = latency * FPS_VARIATION_CONSTANT <= target_latency;
+	safe_fps_condition = fps >= target_fps * FPS_VARIATION_CONSTANT;
 	achieved_latency = latency;
 	achieved_fps = fps;
 }
@@ -179,7 +177,7 @@ void set_core_freq(int cpu_type, int new_freq_index)  {
 /*
  * Read target FPS and latency from text file so it can be updated at runtime
  */
-void update_target() {
+bool update_target() {
 	ifstream target_file("target.txt");
 	std::string line;
 	getline(target_file, line);
@@ -203,6 +201,8 @@ void update_target() {
 		exit(1);
 	}
 
+	bool target_changed = false;
+
 	if (new_target_fps != target_fps) {
 		printf("Target FPS changed from %d to %d\n", target_fps, new_target_fps);
 		target_fps = new_target_fps;
@@ -214,6 +214,7 @@ void update_target() {
 		target_latency = new_target_latency;
 		target_changed = true;
 	}
+	return target_changed;
 }
 
 void find_order();
@@ -224,16 +225,19 @@ void find_order();
  */
 void steady_state() {
 	printf("Keep running test in a loop\n");
-	update_target();
+	n_frames = 60;
+
+	if (update_target()) {
+		printf("Target changed\n");
+		find_order();
+		return;
+	}
+
 	run_test();
 
-	if (target_changed ||
-			!fps_condition ||
+	if (!fps_condition ||
 			!latency_condition) {
-		if (target_changed) {
-			partition_point_1 = 1;
-			partition_point_2 = 1;
-		}
+		printf("FPS/latency conditions failed\n");
 		find_order();
 		return;
 	}
@@ -244,6 +248,8 @@ void steady_state() {
 void lower_core_freq_binary_search(int cpu_type) {
 	int lo = 0;
 	int hi = cpu_type == CPU_BIG ? max_big_freq_index : max_little_freq_index;
+
+	printf("Now try backing off %s CPU freq\n", cpu_type == CPU_BIG ? "big" : "little");
 
 	while (hi != lo) {
 		int mid = (lo + hi) / 2;
@@ -268,32 +274,12 @@ void lower_core_freq_binary_search(int cpu_type) {
  * frequencies as much as possible while keeping the performance target satisfied.
  */
 void lower_frequencies() {
-	if (partition_point_1 == partition_point_2) {
-		printf("Shifting work from big CPU to little CPU\n");
-		while(partition_point_1 <= 7) {
-			partition_point_1++;
-			partition_point_2++;
-			run_test();
-			if (safe_fps_condition && safe_latency_condition) {
-				printf("Conditions still met, shifting more\n");
-				continue;
-			} else {
-				printf("Conditions now failing, restore partition points\n");
-				partition_point_1--;
-				partition_point_2--;
-				break;
-			}
-		}
-	}
-
-	printf("Now try backing off little CPU freq\n");
 	lower_core_freq_binary_search(CPU_BIG);
 	lower_core_freq_binary_search(CPU_LITTLE);
 
 	printf("Solution was found.\n big_freq: %d \t little_freq: %d \t partition_point_1: %d \t partition_point_2: %d \t order: %s\n",
 			big_freq_table[cur_big_freq_index], little_freq_table[cur_little_freq_index], partition_point_1, partition_point_2, order.c_str());
 
-	target_changed = false;
 	steady_state();
 }
 
@@ -317,11 +303,11 @@ void tune_partition_points() {
 				more_tests_available = false;
 			}
 		} else if (order.compare("G-B-L")) {
-			if (partition_point_1 == 4) {
-				partition_point_1 = 3;
-			} else {
+			// if (partition_point_1 == 4) {
+			// 	partition_point_1 = 3;
+			// } else {
 				more_tests_available = false;
-			}
+			// }
 		} else {
 			// TODO Implement shifting partition points for other pipeline orders
 			more_tests_available = false;
@@ -342,15 +328,31 @@ void tune_partition_points() {
 		// Try more tests if available
 	} while (more_tests_available);
 
+	if (order.compare("L-G-B") && partition_point_1 == partition_point_2) {
+		while(partition_point_1 < 7) {
+			partition_point_1++;
+			partition_point_2++;
+			run_test();
+			if (!safe_fps_condition || !safe_latency_condition) {
+				printf("Conditions now failing, restore partition points\n");
+				partition_point_1--;
+				partition_point_2--;
+				break;
+			}
+			printf("Conditions still met, shifting more\n");
+		}
+	}
+
 	// No more tests available, performance still satisfactory
 	lower_frequencies();
 }
 
 void find_order() {
+	n_frames = 15;
 	set_core_freq(CPU_LITTLE, max_little_freq_index);
 	set_core_freq(CPU_BIG, max_big_freq_index);
 
-	// Try LGB with GPU first, this is a balanced profile
+	printf("Try LGB with GPU first, this is a balanced profile\n");
 	order = "L-G-B";
 	partition_point_1 = 1;
 	partition_point_2 = 5;
@@ -358,7 +360,7 @@ void find_order() {
 	run_test();
 
 	if (safe_latency_condition && safe_fps_condition) {
-		// Try to get by with LBG without GPU, the slowest profile but with lowest power consumption
+		printf("Try to get by with LBG without GPU, the slowest profile but with lowest power consumption\n");
 		order = "L-B-G";
 		partition_point_1 = 1;
 		partition_point_2 = 7;
@@ -367,7 +369,7 @@ void find_order() {
 			tune_partition_points();
 			return;
 		} else {
-			// Revert
+			printf("Revert\n");
 			order = "L-G-B";
 			partition_point_1 = 1;
 			partition_point_2 = 5;
@@ -375,15 +377,19 @@ void find_order() {
 			return;
 		}
 	} else if (safe_fps_condition && !safe_latency_condition) {
-		// FPS target met, latency target unment
-		// Try the very power hungry profile with extremely low latency
-		order = "B-G-L";
-		partition_point_1 = 6;
-		partition_point_2 = 6;
+		printf("FPS target met, latency target unmet\n");
+		printf("Try the profile with extremely low latency\n");
+		order = "G-B-L";
+		partition_point_1 = 7;
+		partition_point_2 = 7;
+		// run_test()
+		// if (safe_fps_condition && !safe_latency_condition) {
+		// 	printf("Latency still not good enough")
+		// }
 	} else if (!safe_fps_condition && safe_latency_condition) {
-		// Higher throughput, don't care about latency that much
-		order = "GBL";
-		partition_point_1 = 4;
+		printf("Higher throughput, don't care about latency that much\n");
+		order = "G-B-L";
+		partition_point_1 = 5;
 		partition_point_2 = 6;
 	} else {
 		// TODO Don't exit, keep running somehow
@@ -416,7 +422,7 @@ int main(int argc, char *argv[]) {
 	// target_fps = atoi(argv[3]);
 	// target_latency = atoi(argv[4]);
 	order = "L-G-B";
-	n_frames = 10;
+	// n_frames = 10;
 	update_target();
 
 	// Check if processor is available
