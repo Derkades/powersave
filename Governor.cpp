@@ -382,17 +382,12 @@ void find_order() {
 		order = "G-B-L";
 		partition_point_1 = 7;
 		partition_point_2 = 7;
-		// run_test()
-		// if (safe_fps_condition && !safe_latency_condition) {
-		// 	printf("Latency still not good enough")
-		// }
 	} else if (!safe_fps_condition && safe_latency_condition) {
 		printf("Higher throughput, don't care about latency that much\n");
 		order = "G-B-L";
 		partition_point_1 = 5;
 		partition_point_2 = 6;
 	} else {
-		// TODO Don't exit, keep running somehow
 		printf("Impossible target\n");
 		exit(1);
 	}
@@ -404,7 +399,6 @@ void find_order() {
 		return;
 	}
 
-	// TODO Don't exit, keep running somehow
 	printf("Impossible target\n");
 	exit(1);
 }
@@ -436,10 +430,6 @@ int main(int argc, char *argv[]) {
 	// Setup Performance Governor (CPU)
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor");
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy2/scaling_governor");
-
-	// Initialize little and big CPU with lowest frequency
-	// set_core_freq(CPU_BIG, 0);
-	// set_core_freq(CPU_LITTLE, 0);
 
 	update_target();
 	find_order();
