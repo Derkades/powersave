@@ -225,7 +225,7 @@ void find_order();
  */
 void steady_state() {
 	printf("Keep running test in a loop\n");
-	n_frames = 60;
+	n_frames = 600;
 
 	if (update_target()) {
 		printf("Target changed\n");
@@ -343,7 +343,7 @@ void tune_partition_points() {
 }
 
 void find_order() {
-	n_frames = 15;
+	n_frames = 30;
 	set_core_freq(CPU_LITTLE, max_little_freq_index);
 	set_core_freq(CPU_BIG, max_big_freq_index);
 
@@ -377,6 +377,14 @@ void find_order() {
 		order = "G-B-L";
 		partition_point_1 = 7;
 		partition_point_2 = 7;
+
+		run_test();
+		if (!safe_fps_condition) {
+			printf("Need to choose profile with better FPS but higher power consumption\n");
+			order = "B-G-L";
+			partition_point_1 = 6;
+			partition_point_2 = 6;
+		}
 	} else if (!safe_fps_condition && safe_latency_condition) {
 		printf("Higher throughput, don't care about latency that much\n");
 		order = "G-B-L";
