@@ -428,7 +428,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Set OpenCL library path
-	setenv("LD_LIBRARY_PATH", "/data/local/workingdir", 1);
+	setenv("LD_LIBRARY_PATH", "/data/local/Working_dir", 1);
 
 	// Setup Performance Governor (CPU)
 	system("echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor");

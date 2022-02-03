@@ -32,8 +32,8 @@ for magic in [
 
     command = f"""
     adb exec-out sh -x -c '
-        cd /data/local/workingdir &&
-        export LD_LIBRARY_PATH=/data/local/workingdir &&
+        cd /data/local/Working_dir &&
+        export LD_LIBRARY_PATH=/data/local/Working_dir &&
         echo {little_freq} > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq
         echo {big_freq} > /sys/devices/system/cpu/cpufreq/policy2/scaling_max_freq
         ./graph_alexnet_all_pipe_sync --threads=4 --threads2=2 --n=60 --total_cores=6 --partition_point={partition_point_1} --partition_point2={partition_point_2} --order={order}
